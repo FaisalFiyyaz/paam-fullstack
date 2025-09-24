@@ -1,16 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
-  trailingSlash: true,
-  distDir: 'out',
+  experimental: {
+    serverComponentsExternalPackages: ['@supabase/supabase-js', 'postgres']
+  },
   images: {
-    unoptimized: true
+    domains: ['images.clerk.dev', 'img.clerk.com']
   },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
+  env: {
+    CUSTOM_KEY: process.env.CUSTOM_KEY,
   }
 }
 

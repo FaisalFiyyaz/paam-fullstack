@@ -17,11 +17,38 @@ export default function DatabaseInitializer() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Skip database initialization for static export
-    console.log('📦 Static export mode - skipping database initialization')
-    setIsInitialized(true)
-    setIsLoading(false)
-  }, [])
+    const initializeDatabase = async () => {
+      try {
+        // Call the initialization API
+        const response = await fetch('/api/init', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        })
+
+        const result = await response.json()
+
+        if (result.success) {
+          console.log('✅ Database initialization completed:', result.message)
+          setIsInitialized(true)
+        } else {
+          console.warn('⚠️ Database initialization had issues:', result.message)
+          setIsInitialized(false)
+        }
+      } catch (error) {
+        console.error('❌ Database initialization failed:', error)
+        setIsInitialized(false)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    // Only run initialization once
+    if (!isInitialized && isLoading) {
+      initializeDatabase()
+    }
+  }, [isInitialized, isLoading])
 
   // This component doesn't render anything visible
   return null
