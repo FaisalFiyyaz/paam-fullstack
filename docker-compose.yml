@@ -1,0 +1,112 @@
+# Docker Compose configuration for PAAM FullStack Application
+# Supports both development and production environments
+
+version: '3.8'
+
+services:
+  # Main application service
+  app:
+    build:
+      context: .
+      target: dev  # Use dev stage for development
+      dockerfile: Dockerfile
+    container_name: paam-fullstack-app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:password@db:5432/paam_db
+      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+    env_file:
+      - .env.local
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - db
+      - redis
+    networks:
+      - paam-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL database service
+  db:
+    image: postgres:15-alpine
+    container_name: paam-fullstack-db
+    environment:
+      - POSTGRES_DB=paam_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - paam-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d paam_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis service for caching and sessions
+  redis:
+    image: redis:7-alpine
+    container_name: paam-fullstack-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - paam-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Database migration service (runs once)
+  migrate:
+    build:
+      context: .
+      target: build
+      dockerfile: Dockerfile
+    container_name: paam-fullstack-migrate
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:password@db:5432/paam_db
+    env_file:
+      - .env.local
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - paam-network
+    command: ["npm", "run", "db:migrate"]
+    restart: "no"
+
+# Named volumes for data persistence
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# Custom network for service communication
+networks:
+  paam-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
